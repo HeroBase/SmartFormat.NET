@@ -54,6 +54,7 @@
         /// </summary>
         private char AlternativeEscapeChar = '\\';
 
+		private char QuoteChar = '`';
         /// <summary>
         /// Includes a-z and A-Z in the list of allowed selector chars.
         /// </summary>
@@ -132,22 +133,27 @@
             int lastI = 0;
             int operatorIndex = 0;
             int selectorIndex = 0;
+			bool inQuotedText = false;
+			char lastChar = (char)0;
+			char c = (char)0;
             for (int i = 0, length = format.Length; i < length; i++)
             {
-                var c = format[i];
+				lastChar = c;
+                c = format[i];
                 if (currentPlaceholder == null)
                 {
                     if (c == '{')
                     {
+						var startIndex = i;
                         // Finish the last text item:
                         if (i != lastI)
                             current.Items.Add(new LiteralText(current, lastI) { endIndex = i });
                         lastI = i + 1;
 
+						var nextI = lastI;
                         // See if this brace should be escaped:
                         if (!this.AlternativeEscaping)
                         {
-                            var nextI = lastI;
                             if (nextI < length && format[nextI] == '{')
                             {
                                 i++;
@@ -155,9 +161,15 @@
                             }
                         }
 
+						if( nextI < length && format[nextI] == QuoteChar )
+						{
+							inQuotedText = true;
+							i++;
+							lastI++;
+						}
                         // New placeholder:
                         nestedDepth++;
-                        currentPlaceholder = new Placeholder(current, i, nestedDepth);
+						currentPlaceholder = new Placeholder( current, startIndex, nestedDepth );
                         current.Items.Add(currentPlaceholder);
                         current.HasNested = true;
                         operatorIndex = i+1;
@@ -212,23 +224,40 @@
                 else
                 {
                     // Placeholder is NOT null, so that means we're parsing the selectors:
+					if( inQuotedText )
+					{
+						inQuotedText = c != QuoteChar;
+					}
+					else
+					{
+						var endIndex = i;
+						if( i > 0 && lastChar == QuoteChar )
+						{
+							endIndex = i-1;
+						}
                     if (Operators.IndexOf(c) != -1)
                     {
                         // Add the selector:
                         if (i != lastI)
                         {   
-                            currentPlaceholder.Selectors.Add(new Selector(format, lastI, i, operatorIndex, selectorIndex));
+								currentPlaceholder.Selectors.Add( new Selector( format, lastI, endIndex, operatorIndex, selectorIndex ) );
                             selectorIndex++;
                             operatorIndex = i;
                         }
 
                         lastI = i + 1;
+							if( lastI < length && format[lastI] == QuoteChar )
+							{
+								inQuotedText = true;
+								i++;
+								lastI++;
                     }
+						}
                     else if (c == ':')
                     {
                         // Add the selector:
                         if (i != lastI)
-                            currentPlaceholder.Selectors.Add(new Selector(format, lastI, i, operatorIndex, selectorIndex));
+								currentPlaceholder.Selectors.Add( new Selector( format, lastI, endIndex, operatorIndex, selectorIndex ) );
                         else if (operatorIndex != i)
                         {
                             // There are trailing operators.  For now, this is an error.
@@ -247,7 +276,7 @@
                     {
                         // Add the selector:
                         if (i != lastI)
-                            currentPlaceholder.Selectors.Add(new Selector(format, lastI, i, operatorIndex, selectorIndex));
+								currentPlaceholder.Selectors.Add( new Selector( format, lastI, endIndex, operatorIndex, selectorIndex ) );
                         else if (operatorIndex != i)
                         {
                             // There are trailing operators.  For now, this is an error.
@@ -261,6 +290,7 @@
                         currentPlaceholder.endIndex = i + 1;
                         current = currentPlaceholder.parent;
                         currentPlaceholder = null;
+							inQuotedText = false;
                     }
                     else 
                     {
@@ -275,6 +305,7 @@
                             // Invalid character in the selector.
                             parsingErrors.AddIssue(current, "Invalid character in the selector", i, i + 1);
                             //ParserError(format, i, "Invalid character in the selector", result);
+							}
                         }
                     }
                 }

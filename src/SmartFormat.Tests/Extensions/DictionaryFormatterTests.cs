@@ -26,6 +26,7 @@ namespace SmartFormat.Tests
                     {"A", "a"},
                     {"B", "b"},
                     {"C", "c"},
+					{"Name.with.dot", "d"}
                 }},
                 {"Object", new {
                     Prop1 = "a",
@@ -60,11 +61,13 @@ namespace SmartFormat.Tests
 
             var formats = new string[] {
                 "Chained: {0.Numbers.One} {Numbers.Two} {Letters.A} {Object.Prop1} ",
-                "Nested: {0:{Numbers:{One} {Two}} } {Letters:{A}} {Object:{Prop1}} ", // Due to double-brace escaping, the spacing in this nested format is irregular
+                "Nested: {0:{Numbers:{One} {Two}} } {Letters:{A}} {Letters:{Name.with.dot}} {Object:{Prop1}} ", // Due to double-brace escaping, the spacing in this nested format is irregular
+                @"{Letters.`Name.with.dot`}", // Due to double-brace escaping, the spacing in this nested format is irregular
             };
             var expected = new string[] {
                 "Chained: 1 2 a a ",
-                "Nested: 1 2  a a ",
+                "Nested: 1 2  a d a ",
+                "d",
             };
             var args = GetArgs();
             formatter.Test(formats, args, expected);
